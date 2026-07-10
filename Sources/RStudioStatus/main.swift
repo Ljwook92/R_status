@@ -9,6 +9,7 @@ private enum RunState: String, Codable {
     case running
     case complete
     case fail
+    case interrupted
 
     var menuTitle: String {
         switch self {
@@ -16,6 +17,7 @@ private enum RunState: String, Codable {
         case .running: return "Running ⏳"
         case .complete: return "Complete ✅"
         case .fail: return "Fail ⚠️"
+        case .interrupted: return "Interrupted ⛔️"
         }
     }
 }
@@ -244,7 +246,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
         } else {
             timer?.invalidate()
             timer = nil
-            if state == .complete || state == .fail { sendNotification() }
+            if state == .complete || state == .fail || state == .interrupted { sendNotification() }
         }
         updateDisplay()
     }
@@ -296,7 +298,15 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
 
     private func sendNotification() {
         let title = taskName.isEmpty ? state.menuTitle : taskName
-        let body = state == .complete ? "R 작업이 완료되었습니다." : (detailMessage.isEmpty ? "R 작업이 실패했습니다." : detailMessage)
+        let body: String
+        switch state {
+        case .complete:
+            body = "R 작업이 완료되었습니다."
+        case .interrupted:
+            body = "R 작업이 사용자에 의해 중단되었습니다."
+        default:
+            body = detailMessage.isEmpty ? "R 작업이 실패했습니다." : detailMessage
+        }
         postNotification(title: title, body: body)
     }
 

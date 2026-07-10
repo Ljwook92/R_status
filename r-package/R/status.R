@@ -12,7 +12,7 @@
 
 #' Send an R execution status to the menu bar app
 #'
-#' @param status One of `idle`, `running`, `complete`, or `fail`.
+#' @param status One of `idle`, `running`, `complete`, `fail`, or `interrupted`.
 #' @param name A short task name.
 #' @param message Optional detail or error message.
 #' @param host Local app host.
@@ -21,7 +21,7 @@
 #' @export
 rstatus_notify <- function(status, name = "R task", message = NULL,
                            host = "127.0.0.1", port = 47821L) {
-  status <- match.arg(status, c("idle", "running", "complete", "fail"))
+  status <- match.arg(status, c("idle", "running", "complete", "fail", "interrupted"))
   fields <- c(
     sprintf('"status":"%s"', .rstatus_json_escape(status)),
     sprintf('"name":"%s"', .rstatus_json_escape(name))
@@ -81,7 +81,7 @@ rstatus_run <- function(expr, name = deparse1(substitute(expr), nlines = 1L)) {
     rstatus_notify("fail", name, conditionMessage(e))
     stop(e)
   }, interrupt = function(e) {
-    rstatus_notify("fail", name, "Interrupted by user")
+    rstatus_notify("interrupted", name, "Interrupted by user")
     stop(e)
   })
 }

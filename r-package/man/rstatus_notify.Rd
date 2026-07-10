@@ -11,7 +11,7 @@ rstatus_notify(
 )
 }
 \arguments{
-\item{status}{One of \code{idle}, \code{running}, \code{complete}, or \code{fail}.}
+\item{status}{One of \code{idle}, \code{running}, \code{complete}, \code{fail}, or \code{interrupted}.}
 \item{name}{A short task name.}
 \item{message}{Optional detail or error message.}
 \item{host}{Local app host.}

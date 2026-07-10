@@ -9,9 +9,17 @@ mkdir -p "$R_USER_LIBRARY"
 Rscript --vanilla - "$R_USER_LIBRARY" <<'RSCRIPT'
 args <- commandArgs(trailingOnly = TRUE)
 user_library <- args[[1L]]
-if (!requireNamespace("rstudioapi", quietly = TRUE, lib.loc = c(user_library, .libPaths()))) {
-  message("rstudioapi 패키지를 설치합니다...")
-  install.packages("rstudioapi", lib = user_library, repos = "https://cloud.r-project.org")
+dependencies <- c("rstudioapi", "later")
+missing <- dependencies[!vapply(
+  dependencies,
+  requireNamespace,
+  logical(1),
+  quietly = TRUE,
+  lib.loc = c(user_library, .libPaths())
+)]
+if (length(missing)) {
+  message("필수 R 패키지를 설치합니다: ", paste(missing, collapse = ", "))
+  install.packages(missing, lib = user_library, repos = "https://cloud.r-project.org")
 }
 RSCRIPT
 

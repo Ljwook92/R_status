@@ -7,9 +7,10 @@ RStudio에서 실행하는 R 코드의 상태를 macOS 메뉴바와 알림으로
 ```text
 [RStudio 로고]  →  Running ⏳ 00:12  →  Complete ✅
                                       ↘  Fail ⚠️
+                                      ↘  Interrupted ⛔️
 ```
 
-완료 또는 실패 시 macOS 알림도 전송됩니다. 모든 통신은 로컬 주소 `127.0.0.1:47821`에서만 이루어지며 R 코드나 데이터가 외부로 전송되지 않습니다.
+완료, 실패 또는 사용자 중단 시 macOS 알림도 전송됩니다. 모든 통신은 로컬 주소 `127.0.0.1:47821`에서만 이루어지며 R 코드나 데이터가 외부로 전송되지 않습니다.
 
 ## 기능
 
@@ -77,8 +78,16 @@ INSTALL_DIR="$HOME/Applications" ./install.sh
 2. 상태를 추적할 코드를 마우스로 드래그해 선택합니다. 문서 전체를 선택하려면 `Cmd + A`를 누릅니다.
 3. RStudio 상단 메뉴에서 **Addins**를 클릭합니다.
 4. **Run Selection with Status**를 클릭합니다.
-5. 메뉴바의 RStudio 로고가 `Running ⏳`으로 바뀌는지 확인합니다.
-6. 코드가 정상적으로 끝나면 `Complete ✅`, 오류가 발생하면 `Fail ⚠️`가 표시됩니다.
+5. 선택 코드가 RStudio Console의 일반 실행 명령으로 전달되고 Console이 Busy 상태가 되는지 확인합니다.
+6. 메뉴바의 RStudio 로고가 `Running ⏳`으로 바뀌는지 확인합니다.
+7. 코드가 정상적으로 끝나면 `Complete ✅`, 오류가 발생하면 `Fail ⚠️`가 표시됩니다.
+8. 실행 중 RStudio Console의 **Stop** 버튼을 누르면 `Interrupted ⛔️`가 표시됩니다.
+
+Addin은 코드를 내부에서 바로 평가하지 않습니다. Addin 콜백이 먼저 종료된 후 짧은 지연을 두고 RStudio Console로 실행 명령을 전달합니다. 따라서 일반적인 Console 실행과 동일하게 Busy 표시와 Stop 버튼이 활성화됩니다. Console에는 다음과 유사한 명령이 한 줄 표시됩니다.
+
+```r
+rstudiostatus::run_file_with_status(".../rstudio-status-123.R", name = "analysis.R", cleanup = TRUE)
+```
 
 선택 영역이 비어 있으면 Addin이 실행할 코드가 없다는 오류를 표시합니다. 파일 전체를 실행하려면 코드를 선택하지 않고 **Run Current Document with Status**를 사용할 수도 있습니다.
 
@@ -89,16 +98,21 @@ INSTALL_DIR="$HOME/Applications" ./install.sh
 예제 코드는 다음과 같습니다.
 
 ```r
-message("20-second RStudio Status test started")
+message("20-second matrix computation started")
 
-for (second in seq_len(20)) {
-  if (second %% 5 == 0) {
-    message(second, " seconds elapsed")
-  }
-  Sys.sleep(1)
+started_at <- proc.time()[["elapsed"]]
+iteration <- 0L
+checksum <- 0
+
+while (proc.time()[["elapsed"]] - started_at < 20) {
+  matrix_size <- 600L
+  values <- matrix(rnorm(matrix_size * matrix_size), nrow = matrix_size)
+  gram_matrix <- crossprod(values)
+  checksum <- checksum + sum(diag(gram_matrix))
+  iteration <- iteration + 1L
 }
 
-message("20-second RStudio Status test complete")
+message("Matrix computation complete: ", iteration, " iterations")
 ```
 
 예상되는 메뉴바 변화:
@@ -107,7 +121,13 @@ message("20-second RStudio Status test complete")
 [RStudio 로고] → Running ⏳ 00:01 → Running ⏳ 00:20 → Complete ✅
 ```
 
-완료 후 macOS 알림도 표시됩니다. 전체 과정은 약 20초가 걸립니다.
+이 예제는 `Sys.sleep()`이 아니라 실제 행렬 생성과 곱셈을 반복합니다. Addin이 코드를 Console로 전달하므로 RStudio가 Busy 상태가 되고 **Stop** 버튼으로 중단할 수 있습니다. 실행 중 Stop을 누르면 다음처럼 표시됩니다.
+
+```text
+Running ⏳ 00:08 → Interrupted ⛔️
+```
+
+완료하거나 중단하면 macOS 알림도 표시됩니다. 중단하지 않으면 전체 과정은 약 20초가 걸립니다.
 
 ### 단축키 지정
 
@@ -143,6 +163,7 @@ library(rstudiostatus)
 rstatus_notify("running", "데이터 처리")
 rstatus_notify("complete", "데이터 처리")
 rstatus_notify("fail", "데이터 처리", "입력 파일을 찾을 수 없습니다")
+rstatus_notify("interrupted", "데이터 처리", "사용자가 작업을 중단했습니다")
 rstatus_notify("idle", "")
 ```
 
