@@ -71,6 +71,44 @@ INSTALL_DIR="$HOME/Applications" ./install.sh
 - **Run Selection with Status**: 에디터에서 선택한 R 코드를 실행
 - **Run Current Document with Status**: 현재 R 문서 전체를 실행
 
+### `Run Selection with Status` 실행 방법
+
+1. RStudio 에디터에 실행할 R 코드를 입력하거나 `.R` 파일을 엽니다.
+2. 상태를 추적할 코드를 마우스로 드래그해 선택합니다. 문서 전체를 선택하려면 `Cmd + A`를 누릅니다.
+3. RStudio 상단 메뉴에서 **Addins**를 클릭합니다.
+4. **Run Selection with Status**를 클릭합니다.
+5. 메뉴바의 RStudio 로고가 `Running ⏳`으로 바뀌는지 확인합니다.
+6. 코드가 정상적으로 끝나면 `Complete ✅`, 오류가 발생하면 `Fail ⚠️`가 표시됩니다.
+
+선택 영역이 비어 있으면 Addin이 실행할 코드가 없다는 오류를 표시합니다. 파일 전체를 실행하려면 코드를 선택하지 않고 **Run Current Document with Status**를 사용할 수도 있습니다.
+
+### 20초 확인용 예제
+
+저장소의 [`examples/status-test-20-seconds.R`](examples/status-test-20-seconds.R)을 RStudio에서 엽니다. 파일 전체를 선택한 뒤 **Addins → Run Selection with Status**를 실행하세요.
+
+예제 코드는 다음과 같습니다.
+
+```r
+message("20-second RStudio Status test started")
+
+for (second in seq_len(20)) {
+  if (second %% 5 == 0) {
+    message(second, " seconds elapsed")
+  }
+  Sys.sleep(1)
+}
+
+message("20-second RStudio Status test complete")
+```
+
+예상되는 메뉴바 변화:
+
+```text
+[RStudio 로고] → Running ⏳ 00:01 → Running ⏳ 00:20 → Complete ✅
+```
+
+완료 후 macOS 알림도 표시됩니다. 전체 과정은 약 20초가 걸립니다.
+
 ### 단축키 지정
 
 RStudio에서 다음 메뉴를 엽니다.
@@ -195,6 +233,7 @@ Sources/RStudioStatus/   macOS 메뉴바 앱
 Resources/               앱 Info.plist
 r-package/               R 패키지 및 RStudio Addin
 scripts/                 빌드·검사·설치 보조 스크립트
+examples/                동작 확인용 R 예제
 ```
 
 ## 보안과 개인정보

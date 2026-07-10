@@ -236,9 +236,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
         if state == .running {
             startedAt = Date()
             timer?.invalidate()
-            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            let refreshTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
                 Task { @MainActor in self?.updateDisplay() }
             }
+            timer = refreshTimer
+            RunLoop.main.add(refreshTimer, forMode: .common)
         } else {
             timer?.invalidate()
             timer = nil
