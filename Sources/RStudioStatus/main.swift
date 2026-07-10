@@ -28,6 +28,43 @@ private struct StatusUpdate: Decodable {
     let message: String?
 }
 
+private struct GitHubRelease: Decodable {
+    let tagName: String
+    let htmlURL: URL
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlURL = "html_url"
+    }
+}
+
+private enum UpdateCheckResult {
+    case updateAvailable(GitHubRelease)
+    case latest
+    case failed(String)
+}
+
+private func isVersion(_ candidate: String, newerThan current: String) -> Bool {
+    let candidateParts = versionComponents(candidate)
+    let currentParts = versionComponents(current)
+    let count = max(candidateParts.count, currentParts.count)
+    for index in 0..<count {
+        let lhs = index < candidateParts.count ? candidateParts[index] : 0
+        let rhs = index < currentParts.count ? currentParts[index] : 0
+        if lhs != rhs { return lhs > rhs }
+    }
+    return false
+}
+
+private func versionComponents(_ version: String) -> [Int] {
+    version
+        .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+        .split(separator: ".")
+        .map { component in
+            Int(component.prefix(while: { $0.isNumber })) ?? 0
+        }
+}
+
 private final class LocalHTTPServer {
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "RStudioStatus.HTTPServer")
@@ -136,6 +173,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
     private let summaryItem = NSMenuItem(title: "RStudio 연결 대기 중", action: nil, keyEquivalent: "")
     private let detailItem = NSMenuItem(title: "포트 47821", action: nil, keyEquivalent: "")
     private let elapsedItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private var updateItem: NSMenuItem?
     private var state: RunState = .idle
     private var taskName = ""
     private var detailMessage = ""
@@ -179,6 +217,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
 
         summaryItem.isEnabled = false
         detailItem.isEnabled = false
+        detailItem.isHidden = true
         elapsedItem.isEnabled = false
         menu.addItem(summaryItem)
         menu.addItem(detailItem)
@@ -205,9 +244,24 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
         }
 
         menu.addItem(.separator())
+
+        let versionItem = NSMenuItem(title: "Version \(currentVersion)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
+        let checkItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "u")
+        checkItem.target = self
+        updateItem = checkItem
+        menu.addItem(checkItem)
+
+        menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "RStudio Status 종료", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
+    }
+
+    private var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
     private func loadMenuBarIcon() -> NSImage? {
@@ -274,8 +328,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
             detailItem.title = detailMessage
             detailItem.isHidden = false
         } else {
-            detailItem.title = "localhost:47821"
-            detailItem.isHidden = false
+            detailItem.title = ""
+            detailItem.isHidden = true
         }
 
         if let startedAt {
@@ -320,6 +374,73 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotifica
 
     @objc private func testNotification() {
         postNotification(title: "RStudio Status", body: "RStudio 로고 알림 테스트입니다.")
+    }
+
+    @objc private func checkForUpdates() {
+        guard let url = URL(string: "https://api.github.com/repos/Ljwook92/R_status/releases/latest") else { return }
+        let installedVersion = currentVersion
+        updateItem?.title = "Checking for Updates…"
+        updateItem?.isEnabled = false
+
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("RStudioStatus/\(installedVersion)", forHTTPHeaderField: "User-Agent")
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let result: UpdateCheckResult
+            if let error {
+                result = .failed(error.localizedDescription)
+            } else if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {
+                // The repository has no published Release yet. The locally built
+                // version is therefore the latest available version.
+                result = .latest
+            } else if let httpResponse = response as? HTTPURLResponse,
+                      !(200...299).contains(httpResponse.statusCode) {
+                result = .failed("GitHub returned HTTP \(httpResponse.statusCode).")
+            } else if let data,
+                      let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
+                result = isVersion(release.tagName, newerThan: installedVersion)
+                    ? .updateAvailable(release)
+                    : .latest
+            } else {
+                result = .failed("The GitHub release response could not be read.")
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                self?.showUpdateResult(result)
+            }
+        }.resume()
+    }
+
+    private func showUpdateResult(_ result: UpdateCheckResult) {
+        updateItem?.title = "Check for Updates…"
+        updateItem?.isEnabled = true
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        switch result {
+        case .updateAvailable(let release):
+            alert.messageText = "Update Available"
+            alert.informativeText = "RStudio Status \(release.tagName) is available. You are using v\(currentVersion)."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Open Download Page")
+            alert.addButton(withTitle: "Later")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(release.htmlURL)
+            }
+        case .latest:
+            alert.messageText = "You're up to date"
+            alert.informativeText = "You're using the latest version of RStudio Status (v\(currentVersion))."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        case .failed(let message):
+            alert.messageText = "Unable to Check for Updates"
+            alert.informativeText = message
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
