@@ -1,2 +1,211 @@
-# R_status
-Rstudio status
+# RStudio Status
+
+RStudio에서 실행하는 R 코드의 상태를 macOS 메뉴바와 알림으로 보여주는 앱입니다.
+
+대기 중에는 메뉴바에 RStudio 로고만 표시되고, Addin 또는 `rstatus_run()`으로 코드를 실행하면 상태가 다음과 같이 바뀝니다.
+
+```text
+[RStudio 로고]  →  Running ⏳ 00:12  →  Complete ✅
+                                      ↘  Fail ⚠️
+```
+
+완료 또는 실패 시 macOS 알림도 전송됩니다. 모든 통신은 로컬 주소 `127.0.0.1:47821`에서만 이루어지며 R 코드나 데이터가 외부로 전송되지 않습니다.
+
+## 기능
+
+- RStudio 공식 로고를 사용하는 macOS 메뉴바 앱
+- 실행 경과 시간 표시
+- 완료·실패 시 macOS 알림
+- 선택 영역 또는 현재 문서 전체를 실행하는 RStudio Addin
+- 일반 R 코드에서 사용할 수 있는 `rstatus_run()` 함수
+- 로그인 시 자동 실행, 상태 초기화, 알림 테스트 메뉴
+- 앱과 Addin을 함께 설치하는 단일 설치 스크립트
+
+## 필수 조건
+
+- macOS 13 Ventura 이상
+- Apple Silicon Mac
+- [RStudio Desktop](https://posit.co/download/rstudio-desktop/)
+- R 4.1 이상
+- Xcode Command Line Tools
+
+Command Line Tools가 없다면 터미널에서 다음 명령으로 설치할 수 있습니다.
+
+```sh
+xcode-select --install
+```
+
+현재 Swift 앱은 Apple Silicon용으로 테스트했습니다. Intel Mac에서는 소스 빌드가 가능할 수 있지만 아직 검증하지 않았습니다.
+
+## 설치
+
+터미널에서 저장소를 clone하고 설치 스크립트를 실행합니다.
+
+```sh
+git clone https://github.com/Ljwook92/R_status.git
+cd R_status
+chmod +x install.sh uninstall.sh scripts/*.sh
+./install.sh
+```
+
+설치 스크립트는 다음 작업을 자동으로 수행합니다.
+
+1. Swift 메뉴바 앱 빌드
+2. 설치된 RStudio에서 공식 아이콘 복사
+3. `RStudio Status.app`을 `/Applications` 또는 `~/Applications`에 설치
+4. `rstudioapi` 의존성과 `rstudiostatus` R 패키지 설치
+5. 앱 실행 및 macOS 서비스 등록
+
+설치 위치를 직접 지정할 수도 있습니다.
+
+```sh
+INSTALL_DIR="$HOME/Applications" ./install.sh
+```
+
+처음 실행하면 macOS가 알림 권한을 요청합니다. 완료·실패 알림을 받으려면 **허용**을 선택하세요.
+
+## RStudio Addin 사용
+
+설치 후 RStudio를 완전히 종료했다가 다시 실행합니다. 상단의 **Addins** 메뉴에 다음 두 항목이 표시됩니다.
+
+- **Run Selection with Status**: 에디터에서 선택한 R 코드를 실행
+- **Run Current Document with Status**: 현재 R 문서 전체를 실행
+
+### 단축키 지정
+
+RStudio에서 다음 메뉴를 엽니다.
+
+```text
+Tools → Modify Keyboard Shortcuts…
+```
+
+검색창에 `Status`를 입력하고 두 Addin 중 원하는 항목에 단축키를 지정합니다. 이후 해당 단축키로 실행하면 메뉴바 상태가 자동으로 변경됩니다.
+
+일반적인 `Cmd + Enter` 실행을 앱이 외부에서 자동 감지하지는 않습니다. 상태 추적이 필요한 코드는 Addin 단축키 또는 아래의 `rstatus_run()`을 사용해야 합니다.
+
+## R 함수로 사용
+
+긴 작업을 `rstatus_run()`으로 감싸면 시작·완료·실패가 자동으로 보고됩니다.
+
+```r
+library(rstudiostatus)
+
+rstatus_run({
+  Sys.sleep(5)
+  model <- lm(mpg ~ wt, data = mtcars)
+  saveRDS(model, "model.rds")
+}, name = "모델 학습")
+```
+
+상태를 직접 전송할 수도 있습니다.
+
+```r
+library(rstudiostatus)
+
+rstatus_notify("running", "데이터 처리")
+rstatus_notify("complete", "데이터 처리")
+rstatus_notify("fail", "데이터 처리", "입력 파일을 찾을 수 없습니다")
+rstatus_notify("idle", "")
+```
+
+## 메뉴바 메뉴
+
+RStudio 로고 또는 상태 텍스트를 클릭하면 다음 기능을 사용할 수 있습니다.
+
+- 현재 작업 이름과 실행 시간 확인
+- 상태 초기화
+- 알림 테스트
+- RStudio 열기
+- 로그인 시 실행 설정
+- 앱 종료
+
+## 제거
+
+저장소 폴더에서 다음 명령을 실행합니다.
+
+```sh
+./uninstall.sh
+```
+
+이 명령은 `/Applications` 또는 `~/Applications`의 앱과 사용자 R 라이브러리의 `rstudiostatus` 패키지를 제거합니다.
+
+## 문제 해결
+
+### Addins 메뉴에 항목이 보이지 않음
+
+RStudio를 완전히 종료하고 다시 실행하세요. 그래도 보이지 않으면 RStudio 콘솔에서 다음을 확인합니다.
+
+```r
+find.package("rstudiostatus")
+system.file("rstudio", "addins.dcf", package = "rstudiostatus")
+```
+
+RStudio가 터미널의 R과 다른 버전을 사용한다면, RStudio의 **Tools → Global Options → General → R version**에서 사용하는 R 버전을 확인한 후 해당 R로 설치 스크립트를 다시 실행하세요.
+
+### 메뉴바 상태가 바뀌지 않음
+
+메뉴바 앱이 실행 중인지 확인하고 다음 명령으로 로컬 서버 상태를 점검합니다.
+
+```sh
+curl http://127.0.0.1:47821/health
+```
+
+정상 응답:
+
+```json
+{"ok":true,"app":"RStudio Status"}
+```
+
+포트 47821을 다른 프로그램이 사용 중인지 확인하려면 다음을 실행합니다.
+
+```sh
+lsof -nP -iTCP:47821 -sTCP:LISTEN
+```
+
+### 알림이 오지 않음
+
+macOS **시스템 설정 → 알림 → RStudio Status**에서 알림 허용이 켜져 있는지 확인하세요. 메뉴바 앱을 클릭한 뒤 **알림 테스트**로 확인할 수 있습니다.
+
+### RStudio 아이콘을 찾지 못함
+
+RStudio가 기본 위치가 아닌 곳에 설치되어 있다면 아이콘 경로를 지정합니다.
+
+```sh
+RSTUDIO_ICON_PATH="/path/to/RStudio.icns" ./install.sh
+```
+
+## 개발
+
+앱만 빌드:
+
+```sh
+make build
+```
+
+Swift 빌드와 R 패키지 검사:
+
+```sh
+make check
+```
+
+주요 디렉터리:
+
+```text
+Sources/RStudioStatus/   macOS 메뉴바 앱
+Resources/               앱 Info.plist
+r-package/               R 패키지 및 RStudio Addin
+scripts/                 빌드·검사·설치 보조 스크립트
+```
+
+## 보안과 개인정보
+
+- 서버는 `127.0.0.1`에만 바인딩됩니다.
+- R 코드는 앱으로 전송되지 않습니다.
+- 앱에는 상태, 작업 이름, 오류 메시지만 전달됩니다.
+- 인터넷 연결은 최초 설치 시 `rstudioapi` 패키지가 없는 경우에만 필요합니다.
+
+## 라이선스 및 상표
+
+이 프로젝트의 코드는 [MIT License](LICENSE)로 배포됩니다.
+
+RStudio 및 RStudio 로고는 Posit Software, PBC의 상표입니다. 이 프로젝트는 Posit의 공식 제품이 아니며 Posit과 제휴하거나 보증받지 않았습니다. 저장소는 RStudio 로고 파일을 포함하지 않고, 설치 과정에서 사용자의 로컬 RStudio 설치본에서 아이콘을 가져옵니다.

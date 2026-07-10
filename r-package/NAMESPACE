@@ -1,0 +1,5 @@
+export(rstatus_notify)
+export(rstatus_run)
+export(run_current_document_with_status)
+export(run_selection_with_status)
+importFrom(rstudioapi,getActiveDocumentContext)

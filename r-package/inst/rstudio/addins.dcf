@@ -1,0 +1,9 @@
+Name: Run Selection with Status
+Description: Run selected R code and show Running, Complete, or Fail in the macOS menu bar.
+Binding: run_selection_with_status
+Interactive: false
+
+Name: Run Current Document with Status
+Description: Run the current R document and show its status in the macOS menu bar.
+Binding: run_current_document_with_status
+Interactive: false
